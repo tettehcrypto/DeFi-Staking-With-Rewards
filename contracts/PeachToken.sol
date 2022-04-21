@@ -6,13 +6,22 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "./PeachManager.sol";
 
 contract PeachToken is ERC20, Ownable, ReentrancyGuard {
     using SafeMath for uint256;
+    address private _owner;
+
+    address private wavaxAddress = 0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7;
+    address private DEAD = 0x000000000000000000000000000000000000dEaD;
+    PeachManager private peachManager;
 
     uint256 private supply = 2000000;
     uint8 private _decimals = 18;
     uint256 private _totalSupply = supply * (10 ** _decimals);
+
+    uint256 private swapThreshold = supply / 20000;
+    uint256 private swapAmount = supply * 5 / 1000;
 
     uint256 private teamSupply = 100000;
     uint256 private vaultLock = 1000000;
@@ -58,16 +67,17 @@ contract PeachToken is ERC20, Ownable, ReentrancyGuard {
         validAddress(_treasuryPool, _teamPool)
          
     {
+        _owner = _msgSender();
 
         //Set Pool Addresses
         treasuryPool = _treasuryPool;
         teamPool = _teamPool;
-        
+
         //Mint
         _mint(_msgSender(), _totalSupply);
 
         // exclude owner and this contract from fees.
-        excludeAccountFromFee(msg.sender);
+        excludeAccountFromFee(_msgSender());
         excludeAccountFromFee(address(this));
         excludeAccountFromFee(treasuryPool);
         excludeAccountFromFee(teamPool);
@@ -107,6 +117,18 @@ contract PeachToken is ERC20, Ownable, ReentrancyGuard {
     {
         require(!_isBlacklisted[sender] && !_isBlacklisted[recipient],"Blacklisted address");
         
+        
+        uint256 contractTokenBalance = balanceOf(address(treasuryPool)); //which Contract, treasury?
+        if(contractTokenBalance >= swapAmount){
+            contractTokenBalance = swapAmount;
+        }
+
+        //Trigger by PeachManager
+        if(contractTokenBalance >= swapThreshold) {
+            contractSwap(contractTokenBalance);
+        }
+            
+
         uint256 amountReceived = amount * (10 ** _decimals);
         
         bool takeFee = true;
@@ -126,6 +148,43 @@ contract PeachToken is ERC20, Ownable, ReentrancyGuard {
         super._transfer(sender, recipient, amountReceived);
         emit Transfer(sender, recipient, amountReceived);
     }
+
+    //SWAP TOKENS FOR AVAX IF ABOVE THRESHOLD
+    //TRIGGER BY PEACHMANAGER
+    //Move to PeachManager
+    // function contractSwap(uint256 numTokensToSwap) internal {
+    //     ValuesFromAmount memory values = _getValues(numTokensToSwap, _isExcludedFromFee[_msgSender()]);
+    //     uint256 amountToTreasury = values.tTreasuryFee;
+    //     uint256 amountToLiquify = amountToTreasury / 2;
+
+    //     //may need to add approve
+
+
+    //     if(amountToTreasury > 0) { 
+    //         //add transfer
+    //         emit Transfer(address(this), treasuryPool, amountToTreasury);
+    //     }
+
+    //     address[] memory path = new address[](2);
+    //     path[0] = address(this);
+    //     path[1] = wavaxAddress;
+
+    //     //INITIALIZE ROUTER
+    //     peachManager.swapExactTokensForAVAX(
+    //         address(this),
+    //         numTokensToSwap - amountToLiquify - amountToTreasury,
+    //         path
+    //     );
+
+    //     uint256 amountAVAX = address(this).balance;
+
+    //     if (amountToLiquify > 0) {
+    //         peachManager.addLiquidityAvax{value: amountAVAX}(
+    //             address(this),
+    //             amountToLiquify
+    //         );
+    //     }
+    // }
 
     // Allocate Team Wallet Tokens
     function lockInTeamWallet() public onlyOwner {

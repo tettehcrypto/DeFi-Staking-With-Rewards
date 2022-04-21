@@ -1,42 +1,32 @@
 require("@nomiclabs/hardhat-waffle");
 
-task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
-  const accounts = await hre.ethers.getSigners();
+// This is a sample Hardhat task. To learn how to create your own go to
+// https://hardhat.org/guides/create-task.html
+// task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
+//     const accounts = await hre.ethers.getSigners();
 
-  for (const account of accounts) {
-    console.log(account.address);
-  }
-});
+//     for (const account of accounts) {
+//         console.log(account.address);
+//     }
+// });
 
-module.exports ={
-    solidity: {
-        version : "0.8.0",
-        settings : {
-          optimizer: {
-            enabled: true,
-            runs: 200
-          }
-        }
-      },
+/**
+ * @type import('hardhat/config').HardhatUserConfig
+ */
+module.exports = {
+    defaultNetwork: "hardhat",
+    solidity: "0.8.4",
     networks: {
-        localhost: {
-          url: 'http://127.0.0.1:8545/ext/bc/C/rpc',
-          accounts: [],
-        },
-        fuji: {
-          url: 'https://api.avax-test.network/ext/bc/C/rpc',
-          // gasPrice: 'auto',
-          chainId: 43113,
-          accounts: process.env.PRIVATE_KEY !== undefined ? [ process.env.PRIVATE_KEY ] : []
+        hardhat: {
+            chainId: 43114,
+            gasPrice: 225000000000,
+            throwOnTransactionFailures: false,
+            loggingEnabled: true,
+            forking: {
+                url: "https://api.avax.network/ext/bc/C/rpc",
+                enabled: true,
+                blockNumber: 2975762
+            },
         }
-    },
-    paths: {
-        sources: "./contracts",
-        tests: "./test",
-        cache: "./cache",
-        artifacts: "./artifacts"
-      },
-      mocha: {
-        timeout: 40000
-      }
-}
+    }
+};
