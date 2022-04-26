@@ -4,12 +4,20 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract NodeManager is ERC1155, Ownable{
     using SafeMath for uint256;
 
-    uint16 public priceStandard = 20;
-    uint16 public priceSlotmachine = 20;
+    address peachToken;
+    address taxContract;
+
+    uint256 private _decimals = 10**18;
+    uint256 public priceStandard = 20 * _decimals;
+    uint256 public priceSlotmachine = 20* _decimals;
+
+    uint64 public reward = 1157;
+    uint128 public time = 86400;
     
     struct Nodes {
         uint16 tier1;
@@ -21,12 +29,12 @@ contract NodeManager is ERC1155, Ownable{
     }
 
     Nodes public _rewards = Nodes({
-        tier1: 20,
-        tier2: 50,
-        tier3: 67,
-        tier4: 80,
-        tier5: 100,
-        tier6: 267
+        tier1: 1000,
+        tier2: 400,
+        tier3: 300,
+        tier4: 250,
+        tier5: 200,
+        tier6: 75
     });
 
     Nodes public _limit = Nodes({
@@ -43,7 +51,13 @@ contract NodeManager is ERC1155, Ownable{
         uint256 lastClaim;
     }
 
-    constructor() ERC1155("") {} 
+    constructor(
+        address _peachToken,
+        address _taxContract
+    ) ERC1155("") {
+        peachToken = _peachToken;
+        taxContract = _taxContract;
+    } 
 
     // Number Of Nodes Owned By User In Each Tier
     mapping(uint256 => mapping(address => uint256)) private _nodeCountOfOwnerByTier;
@@ -52,7 +66,7 @@ contract NodeManager is ERC1155, Ownable{
     // Node Of User
     mapping(address => mapping(uint256 => Games[])) private _nodesOfOwner;
     // Price Of Node per User
-    mapping(address => uint16) private _prices;
+    mapping(address => uint256) private _prices;
 
     // Number of Nodes Created
     uint256 public nodeCount;
@@ -61,10 +75,70 @@ contract NodeManager is ERC1155, Ownable{
     external
     {
         address sender = msg.sender;
- 
+        require(_nodes[_tier] >= 1 && _nodes[_tier] <7);
         require(
             isNodeAvailable(_tier, amount),"Node not available"
         );
+
+        if(_nodes[_tier] == 6) {
+            setSlotPrice();
+        }  else {
+            setStandardPrice();
+        }
+
+        uint256 senderBalance = IERC20(peachToken).balanceOf(sender);
+        require(senderBalance >= _prices[sender]);
+
+        uint256 tokenAmount = _prices[sender] * amount;
+        IERC20(peachToken).transferFrom(
+            sender,
+            address(this), //Where tokens sent to? Rewards pool?
+            tokenAmount
+        );
+
+        for (uint256 i = 0; i < amount; i++) {
+            _nodesOfOwner[sender][_tier].push(
+                Games({
+                    id: _tier,
+                    lastClaim: block.timestamp
+                })
+            );
+        }
+
+        _nodeCountOfOwnerByTier[_tier][sender]+=amount;
+        _nodes[_tier]+=amount;
+        nodeCount+=amount;
+    }
+
+    //Claim rewards
+    function claimRewards(uint256 _tier)
+    external
+    {
+        address sender = msg.sender;
+        uint256 rewards = getRewards(sender, _tier);
+        require(rewards > 1, "You Don't Have Enough Rewards");
+        
+        uint256 rewardsUser =(rewards * 12) / 100;
+        IERC20(peachToken).transferFrom(
+            address(this),
+            sender,
+            rewardsUser
+        );
+    }
+
+    function compoundRewards(uint256 _tier)
+    external
+    {
+        address sender = msg.sender;
+        uint256 rewards = getRewards(sender, _tier);
+
+        if(_nodes[_tier] == 6) {
+            setSlotPrice();
+        }  else {
+            setStandardPrice();
+        }
+
+        require(rewards >= _prices[sender], "You Don't Have Enough Rewards");
 
         _nodesOfOwner[sender][_tier].push(
             Games({
@@ -75,22 +149,16 @@ contract NodeManager is ERC1155, Ownable{
 
         _nodeCountOfOwnerByTier[_tier][sender]++;
         _nodes[_tier]++;
-    }
-
-    //Claim rewards
-    function claimRewards(uint256 _tier)
-    external
-    {
-        address sender = msg.sender;
+        nodeCount++;
 
     }
 
-    // Calculate Rewards
+    // Calculate Rewards in Tier
     function getRewards(address _sender, uint256 _tier)
     internal
     returns(uint256)
     {
-        require(_nodes[_tier] >= 1 && _nodes[_tier] <=6);
+        require(_nodes[_tier] >= 1 && _nodes[_tier] <7, "Invalid Tier");
         uint256 multiplier;
 
         if(_tier ==1){
@@ -118,20 +186,20 @@ contract NodeManager is ERC1155, Ownable{
 
         for (uint256 i = 0; i < nodesCount; i++) {
             _game = nodes[i];
-            rewards += ((block.timestamp - _game.lastClaim)*multiplier)/100;
+            uint claimDays = ((block.timestamp - _game.lastClaim)/time);
+            rewards += (claimDays*_decimals*multiplier)/1000;
             _game.lastClaim = block.timestamp;
         }
 
         return rewards;
     }
 
-
     function isNodeAvailable(uint256 _id, uint256 amount)
     private
     view
     returns (bool)
     {
-        require(_nodes[_id] >= 1 && _nodes[_id] <=6);
+        require(_nodes[_id] >= 1 && _nodes[_id] <7);
 
         if (_nodes[_id] == 1) {
             if (_nodes[_id] + amount > _limit.tier1) return false;
@@ -163,17 +231,17 @@ contract NodeManager is ERC1155, Ownable{
             +_nodeCountOfOwnerByTier[5][owner];
 
         if (count < 10){
-            _prices[msg.sender] = 20;
+            _prices[msg.sender] = 20* _decimals;
         }else if (count >=10 && count < 20){
-            _prices[msg.sender] = 25;
+            _prices[msg.sender] = 25* _decimals;
         } else if (count >=20 && count < 40){
-            _prices[msg.sender] = 30;
+            _prices[msg.sender] = 30* _decimals;
         }else if (count >=40 && count < 80){
-            _prices[msg.sender] = 35;
+            _prices[msg.sender] = 35* _decimals;
         }else if (count >=80 && count < 100){
-            _prices[msg.sender] = 40;
+            _prices[msg.sender] = 40* _decimals;
         }else if (count >=100){
-            _prices[msg.sender] = 45;
+            _prices[msg.sender] = 45* _decimals;
         }
     }
 
@@ -185,17 +253,17 @@ contract NodeManager is ERC1155, Ownable{
         uint256 count = _nodeCountOfOwnerByTier[6][owner];
 
         if (count < 10){
-            _prices[msg.sender] = 20;
+            _prices[msg.sender] = 20* _decimals;
         }else if (count >=10 && count < 20){
-            _prices[msg.sender] = 25;
+            _prices[msg.sender] = 25* _decimals;
         } else if (count >=20 && count < 40){
-            _prices[msg.sender] = 30;
+            _prices[msg.sender] = 30* _decimals;
         }else if (count >=40 && count < 80){
-            _prices[msg.sender] = 35;
+            _prices[msg.sender] = 35* _decimals;
         }else if (count >=80 && count < 100){
-            _prices[msg.sender] = 40;
+            _prices[msg.sender] = 40* _decimals;
         }else if (count >=100){
-            _prices[msg.sender] = 45;
+            _prices[msg.sender] = 45* _decimals;
         }
     }
 }
