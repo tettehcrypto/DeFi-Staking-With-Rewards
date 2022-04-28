@@ -16,7 +16,7 @@ contract NodeManager is ERC1155, Ownable{
     uint256 public priceStandard = 20 * _decimals;
     uint256 public priceSlotmachine = 20* _decimals;
 
-    uint64 public reward = 1157;
+    // uint64 public reward = 1157;
     uint128 public time = 86400;
     
     struct Nodes {
@@ -59,8 +59,6 @@ contract NodeManager is ERC1155, Ownable{
         taxContract = _taxContract;
     } 
 
-    // Number Of Nodes Owned By User In Each Tier
-    mapping(uint256 => mapping(address => uint256)) private _nodeCountOfOwnerByTier;
     // Number of Nodes Created By Tier
     mapping(uint256 => uint256) private _nodes;
     // Node Of User
@@ -75,7 +73,7 @@ contract NodeManager is ERC1155, Ownable{
     external
     {
         address sender = msg.sender;
-        require(_nodes[_tier] >= 1 && _nodes[_tier] <7);
+        require(_tier >= 1 && _tier <7, "Invalid Tier");
         require(
             isNodeAvailable(_tier, amount),"Node not available"
         );
@@ -105,7 +103,7 @@ contract NodeManager is ERC1155, Ownable{
             );
         }
 
-        _nodeCountOfOwnerByTier[_tier][sender]+=amount;
+        _mint(sender, _tier, amount, "");
         _nodes[_tier]+=amount;
         nodeCount+=amount;
     }
@@ -147,7 +145,7 @@ contract NodeManager is ERC1155, Ownable{
             })
         );
 
-        _nodeCountOfOwnerByTier[_tier][sender]++;
+        _mint(sender, _tier, 1, "");
         _nodes[_tier]++;
         nodeCount++;
 
@@ -158,7 +156,7 @@ contract NodeManager is ERC1155, Ownable{
     internal
     returns(uint256)
     {
-        require(_nodes[_tier] >= 1 && _nodes[_tier] <7, "Invalid Tier");
+        require(_tier >= 1 && _tier <7, "Invalid Tier");
         uint256 multiplier;
 
         if(_tier ==1){
@@ -199,7 +197,7 @@ contract NodeManager is ERC1155, Ownable{
     view
     returns (bool)
     {
-        require(_nodes[_id] >= 1 && _nodes[_id] <7);
+        require(_id >= 1 && _id <7);
 
         if (_nodes[_id] == 1) {
             if (_nodes[_id] + amount > _limit.tier1) return false;
@@ -224,11 +222,11 @@ contract NodeManager is ERC1155, Ownable{
     {
         address owner = msg.sender;
         uint256 count = 
-            _nodeCountOfOwnerByTier[1][owner]
-            +_nodeCountOfOwnerByTier[2][owner]
-            +_nodeCountOfOwnerByTier[3][owner]
-            +_nodeCountOfOwnerByTier[4][owner]
-            +_nodeCountOfOwnerByTier[5][owner];
+            balanceOf(owner,1)
+            +balanceOf(owner,2)
+            +balanceOf(owner,3)
+            +balanceOf(owner,4)
+            +balanceOf(owner,5);
 
         if (count < 10){
             _prices[msg.sender] = 20* _decimals;
@@ -250,7 +248,7 @@ contract NodeManager is ERC1155, Ownable{
     public 
     {
         address owner = msg.sender;
-        uint256 count = _nodeCountOfOwnerByTier[6][owner];
+        uint256 count = balanceOf(owner,6);
 
         if (count < 10){
             _prices[msg.sender] = 20* _decimals;
