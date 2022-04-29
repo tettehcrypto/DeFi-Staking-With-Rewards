@@ -53,7 +53,8 @@ contract PeachToken is ERC20, Ownable, ReentrancyGuard {
         uint256 tTransferAmount;
     }
     
-    modifier validAddress(address _one, address _two){
+    modifier validAddress(address _one, address _two)
+    {
         require(_one != address(0));
         require(_two != address(0));
         _;
@@ -81,6 +82,9 @@ contract PeachToken is ERC20, Ownable, ReentrancyGuard {
         excludeAccountFromFee(address(this));
         excludeAccountFromFee(treasuryPool);
         excludeAccountFromFee(teamPool);
+        
+        // excludeAccountFromFee(0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7);
+        // excludeAccountFromFee(0x60aE616a2155Ee3d9A68541Ba4544862310933d4);
 
         emit Transfer(address(0), _msgSender(), _totalSupply);
         emit OwnershipTransferred(address(0), _msgSender());
@@ -118,35 +122,33 @@ contract PeachToken is ERC20, Ownable, ReentrancyGuard {
         require(!_isBlacklisted[sender] && !_isBlacklisted[recipient],"Blacklisted address");
         
         
-        uint256 contractTokenBalance = balanceOf(address(treasuryPool)); //which Contract, treasury?
-        if(contractTokenBalance >= swapAmount){
-            contractTokenBalance = swapAmount;
-        }
+        // uint256 contractTokenBalance = balanceOf(address(treasuryPool)); //which Contract, treasury?
+        // if(contractTokenBalance >= swapAmount){
+        //     contractTokenBalance = swapAmount;
+        // }
 
-        //Trigger by PeachManager
-        if(contractTokenBalance >= swapThreshold) {
-            contractSwap(contractTokenBalance);
-        }
+        // //Trigger by PeachManager
+        // if(contractTokenBalance >= swapThreshold) {
+        //     contractSwap(contractTokenBalance);
+        // }
             
 
-        uint256 amountReceived = amount * (10 ** _decimals);
+        // uint256 amountReceived = amount * (10 ** _decimals);
         
         bool takeFee = true;
-        ValuesFromAmount memory values = _getValues(amountReceived, _isExcludedFromFee[sender]);
+        ValuesFromAmount memory values = _getValues(amount, _isExcludedFromFee[sender]);
         
         if(_isExcludedFromFee[sender] || _isExcludedFromFee[recipient]){
             takeFee = false;
         }
 
         if (takeFee) {
-            amountReceived=values.tTransferAmount;
-
+            amount=values.tTransferAmount;
             super._transfer(sender, treasuryPool, values.tTreasuryFee);
-
         }
 
-        super._transfer(sender, recipient, amountReceived);
-        emit Transfer(sender, recipient, amountReceived);
+        super._transfer(sender, recipient, amount);//change to amountReceive
+        emit Transfer(sender, recipient, amount);
     }
 
     //SWAP TOKENS FOR AVAX IF ABOVE THRESHOLD

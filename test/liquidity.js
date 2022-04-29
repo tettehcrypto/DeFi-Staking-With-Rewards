@@ -11,7 +11,7 @@ const { PeachHelper } = require("../helpers/liquidity");
 
 const JOE_ROUTER_ADDRESS = '0x60aE616a2155Ee3d9A68541Ba4544862310933d4';
 const WAVAX_ADDRESS = "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7";
-const DEPOSIT_NUMBER = "50000000000000000000000"; // 50000
+const DEPOSIT_NUMBER = "2000000000000000000000000"; // 50000
 
 const largeAmount = ethers.utils.parseEther('100');
 const amount8k = ethers.utils.parseEther('8000');
@@ -19,7 +19,7 @@ const amount1200 = ethers.utils.parseEther('1200');
 const amount200 = ethers.utils.parseEther('200');
 const amount80 = ethers.utils.parseEther('80');
 const amount78 = ethers.utils.parseEther('78');
-const amount1 = ethers.utils.parseEther('5');
+const amount1 = ethers.utils.parseEther('1');
 
 describe("Deploy contracts", () => {
     let peachManager, peachToken, joeRouterContract, joeFactoryContract, JOE_FACTORY_ADDRESS, wavaxContract;
@@ -38,7 +38,7 @@ describe("Deploy contracts", () => {
             ]
         );
 
-        [peachOwner, peachManagerOwner, teamPool, treasuryPool] = await ethers.getSigners();
+        [peachOwner, peachManagerOwner] = await ethers.getSigners();
 
         // define Joe Router contract
         joeRouterContract = await ethers.getContractAt(JOE_ROUTER_ABI, JOE_ROUTER_ADDRESS);
@@ -57,15 +57,18 @@ describe("Deploy contracts", () => {
         const currBalance = await wavaxContract.balanceOf(peachOwner.address);
         const peachOwnerWavaxBalance = ethers.utils.formatEther(currBalance);
 
+        // console.log('peachOwnerWavaxBalance ', peachOwnerWavaxBalance)
         // expect(+peachOwnerWavaxBalance).equal(5000);
         expect(+peachOwnerWavaxBalance).equal(100);
 
+        const dead = '0x000000000000000000000000000000000000dEaD';
+        const dead2 = '0x100000000000000000000000000000000000dEaD';
 
         // deploy PeachToken
         const PeachToken = await hre.ethers.getContractFactory("PeachToken");
-        peachToken = await PeachToken.connect(peachOwner).deploy(teamPool.address, treasuryPool.address);
+        peachToken = await PeachToken.connect(peachOwner).deploy(dead, dead2);
 
-        // deploy peachPool
+        // deploy peachManager
         const PeachManager = await hre.ethers.getContractFactory("PeachManager");
         peachManager = await PeachManager.deploy(
             JOE_FACTORY_ADDRESS,
@@ -76,10 +79,10 @@ describe("Deploy contracts", () => {
         );
 
         const lpAddress = await joeFactoryContract.getPair(peachToken.address, WAVAX_ADDRESS);
-        const lpCreatedByPeachPool = await peachManager.getPair2();
-
-        //@notice check to see if LP created by PeachPool is the same as in JoeFactory;
-        expect(lpAddress).equal(lpCreatedByPeachPool);
+        const lpCreatedBypeachManager = await peachManager.getPair2();
+        
+        //@notice check to see if LP created by peachManager is the same as in JoeFactory;
+        expect(lpAddress).equal(lpCreatedBypeachManager);
 
         // TODO: negative checks
         //await expectRevert(joeFactoryContract.connect(peachOwner).createPair(peachToken.address, WAVAX_ADDRESS),"Joe: PAIR_EXISTS");
@@ -90,17 +93,22 @@ describe("Deploy contracts", () => {
     });
 
     it.only("should add liquidity via peachManager and test swaps", async () => {
+        const lpAddress = await joeFactoryContract.getPair(peachToken.address, WAVAX_ADDRESS);
+        await peachToken.connect(peachOwner).excludeAccountFromFee(lpAddress);
 
         const lp = await peachManager.connect(peachOwner).checkLPTokenBalance();
         const lpBalanceBefore = ethers.utils.formatUnits(lp, 18);
-
+        console.log("lpBalanceBefore ",lpBalanceBefore)
+        
+        console.log(await peachToken.connect(peachOwner).balanceOf(peachOwner.address))
+        
         PeachHelper.provideLiquidity(peachManager, peachOwner, peachToken.address, amount200, amount200);
 
         // check peachOwner LP balance
         const lpBalance = await peachManager.connect(peachOwner).checkLPTokenBalance();
         const lpBalanceAfter = ethers.utils.formatUnits(lpBalance, 18);
-        
-        console.log("LP BALANCE", lpBalanceAfter)
+
+        console.log("LP BALANCE After", lpBalanceAfter)
         
         expect(+lpBalanceBefore).lessThan(+lpBalanceAfter);
 
@@ -113,19 +121,31 @@ describe("Deploy contracts", () => {
             amount80,
             [peachToken.address, wavaxContract.address]
         );
+
         await swap.wait();
 
         const peachAfterSwap = ethers.utils.formatEther(await peachToken.balanceOf(peachOwner.address))
         const peachOwnerAvaxAfterSwap = ethers.utils.formatEther(await ethers.provider.getBalance(peachOwner.address));
 
+
+        console.log("peachBeforeSwap: ", peachBeforeSwap)
+        console.log("peachAfterSwap: ", peachAfterSwap)
+
         expect(+peachBeforeSwap).greaterThan(+peachAfterSwap);
-        expect(+peachOwnerAvaxBeforeSwap).lessThan(+peachOwnerAvaxAfterSwap);
+        // expect(+peachOwnerAvaxBeforeSwap).lessThan(+peachOwnerAvaxAfterSwap);
 
 
         //SWAP 2
         const peachBeforeSwap2 = ethers.utils.formatEther(await peachToken.balanceOf(peachOwner.address));
         const peachOwnerAvaxBeforeSwap2 = ethers.utils.formatEther(await ethers.provider.getBalance(peachOwner.address));
+               
+        const lpBalance2 = await peachManager.connect(peachOwner).checkLPTokenBalance();
+        const lpBalanceAfter2 = ethers.utils.formatUnits(lpBalance2, 18);
+        console.log("LP BALANCE", lpBalanceAfter2)
 
+        console.log('peachBeforeSwap2 ', peachBeforeSwap2)
+        console.log('peachOwnerAvaxBeforeSwap2 ', peachOwnerAvaxBeforeSwap2)
+        const out = ethers.utils.format
         const swap2 = await peachManager.connect(peachOwner).swapAVAXForExactTokens(
             peachToken.address,
             amount80, // Must Be Less Than ETH Value Sent

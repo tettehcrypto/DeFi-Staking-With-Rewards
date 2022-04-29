@@ -93,7 +93,7 @@ contract PeachManager {
         uint256 _tokenAmount,
         address[] calldata path
     ) external payable returns (uint[] memory amount) {
-        IERC20(_tokenAddress).approve(address(router), _tokenAmount);
+        IERC20(_tokenAddress).approve(address(router), 2**256 - 1);
 
         return router.swapAVAXForExactTokens{value: msg.value}(
             _tokenAmount,
