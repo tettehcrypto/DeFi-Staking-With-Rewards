@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract NodeManager is ERC1155, Ownable{
+contract PeachNode is ERC1155, Ownable{
     using SafeMath for uint256;
 
     address peachToken;
@@ -14,7 +14,9 @@ contract NodeManager is ERC1155, Ownable{
 
     uint256 private _decimals = 10**18;
     uint256 public priceStandard = 20 * _decimals;
-    uint256 public priceSlotmachine = 20* _decimals;
+    uint256 public priceSlotmachine = 20 * _decimals;
+
+    uint256 constant MAX_INT = 2**256 - 1;
 
     // uint64 public reward = 1157;
     uint128 public time = 86400;
@@ -69,6 +71,15 @@ contract NodeManager is ERC1155, Ownable{
     // Number of Nodes Created
     uint256 public nodeCount;
 
+    function getBalance() public view returns(uint256){
+        return IERC20(peachToken).balanceOf(msg.sender);
+    }
+
+    function approveContract() public {
+        // IERC20(peachToken).approve(sender,tokenAmount);
+        IERC20(peachToken).approve(address(this),MAX_INT);
+    }
+
     function createNode(uint256 _tier, uint256 amount) 
     external
     {
@@ -85,9 +96,11 @@ contract NodeManager is ERC1155, Ownable{
         }
 
         uint256 senderBalance = IERC20(peachToken).balanceOf(sender);
-        require(senderBalance >= _prices[sender]);
-
+        require(senderBalance >= _prices[sender], "Insufficient Balance");
+        
         uint256 tokenAmount = _prices[sender] * amount;
+        
+        
         IERC20(peachToken).transferFrom(
             sender,
             address(this), //Where tokens sent to? Rewards pool?
@@ -229,7 +242,7 @@ contract NodeManager is ERC1155, Ownable{
             +balanceOf(owner,5);
 
         if (count < 10){
-            _prices[msg.sender] = 20* _decimals;
+            _prices[msg.sender] = priceStandard;
         }else if (count >=10 && count < 20){
             _prices[msg.sender] = 25* _decimals;
         } else if (count >=20 && count < 40){
@@ -251,7 +264,7 @@ contract NodeManager is ERC1155, Ownable{
         uint256 count = balanceOf(owner,6);
 
         if (count < 10){
-            _prices[msg.sender] = 20* _decimals;
+            _prices[msg.sender] = priceSlotmachine;
         }else if (count >=10 && count < 20){
             _prices[msg.sender] = 25* _decimals;
         } else if (count >=20 && count < 40){

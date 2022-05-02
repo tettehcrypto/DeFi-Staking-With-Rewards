@@ -93,9 +93,8 @@ describe("Deploy contracts", () => {
     });
 
     it.only("should add liquidity via peachManager and test swaps", async () => {
-        const lpAddress = await joeFactoryContract.getPair(peachToken.address, WAVAX_ADDRESS);
-        await peachToken.connect(peachOwner).excludeAccountFromFee(lpAddress);
-
+        const lpCreatedBypeachManager = await peachManager.getPair2();
+        await peachToken.setFeeExempt(lpCreatedBypeachManager, true);
         const lp = await peachManager.connect(peachOwner).checkLPTokenBalance();
         const lpBalanceBefore = ethers.utils.formatUnits(lp, 18);
         console.log("lpBalanceBefore ",lpBalanceBefore)

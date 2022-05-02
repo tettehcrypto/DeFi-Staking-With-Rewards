@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+//SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -6,29 +6,22 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "./PeachManager.sol";
+import "hardhat/console.sol";
 
 contract PeachToken is ERC20, Ownable, ReentrancyGuard {
     using SafeMath for uint256;
-    address private _owner;
-
-    address private wavaxAddress = 0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7;
-    address private DEAD = 0x000000000000000000000000000000000000dEaD;
-    PeachManager private peachManager;
 
     uint256 private supply = 2000000;
     uint8 private _decimals = 18;
     uint256 private _totalSupply = supply * (10 ** _decimals);
 
-    uint256 private swapThreshold = supply / 20000;
-    uint256 private swapAmount = supply * 5 / 1000;
-
-    uint256 private teamSupply = 100000;
-    uint256 private vaultLock = 1000000;
+    uint256 private teamSupply = 100000 * (10 ** _decimals);
+    uint256 private vaultLock = 1000000 * (10 ** _decimals);
     bool private isTeamLocked = false;
     bool private isVaultLocked = false;
 
     //DEAD - 0x000000000000000000000000000000000000dEaD
+    //DEAD - 0x100000000000000000000000000000000000dEaD
     address payable public treasuryPool;
     address payable public teamPool; 
     address payable public vault; 
@@ -53,8 +46,7 @@ contract PeachToken is ERC20, Ownable, ReentrancyGuard {
         uint256 tTransferAmount;
     }
     
-    modifier validAddress(address _one, address _two)
-    {
+    modifier validAddress(address _one, address _two){
         require(_one != address(0));
         require(_two != address(0));
         _;
@@ -64,27 +56,23 @@ contract PeachToken is ERC20, Ownable, ReentrancyGuard {
         address payable _treasuryPool,
         address payable _teamPool
     )
-        ERC20("PEACH NODE", "PEACH") 
+        ERC20("PEACHIFY", "PEACH") 
         validAddress(_treasuryPool, _teamPool)
          
     {
-        _owner = _msgSender();
 
         //Set Pool Addresses
         treasuryPool = _treasuryPool;
         teamPool = _teamPool;
-
+        
         //Mint
         _mint(_msgSender(), _totalSupply);
 
         // exclude owner and this contract from fees.
-        excludeAccountFromFee(_msgSender());
-        excludeAccountFromFee(address(this));
-        excludeAccountFromFee(treasuryPool);
-        excludeAccountFromFee(teamPool);
-        
-        // excludeAccountFromFee(0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7);
-        // excludeAccountFromFee(0x60aE616a2155Ee3d9A68541Ba4544862310933d4);
+        setFeeExempt(msg.sender, true);
+        setFeeExempt(address(this), true);
+        setFeeExempt(treasuryPool, true);
+        setFeeExempt(teamPool, true);
 
         emit Transfer(address(0), _msgSender(), _totalSupply);
         emit OwnershipTransferred(address(0), _msgSender());
@@ -121,106 +109,48 @@ contract PeachToken is ERC20, Ownable, ReentrancyGuard {
     {
         require(!_isBlacklisted[sender] && !_isBlacklisted[recipient],"Blacklisted address");
         
-        
-        // uint256 contractTokenBalance = balanceOf(address(treasuryPool)); //which Contract, treasury?
-        // if(contractTokenBalance >= swapAmount){
-        //     contractTokenBalance = swapAmount;
-        // }
-
-        // //Trigger by PeachManager
-        // if(contractTokenBalance >= swapThreshold) {
-        //     contractSwap(contractTokenBalance);
-        // }
-            
-
-        // uint256 amountReceived = amount * (10 ** _decimals);
+        uint256 amountReceived = amount;
         
         bool takeFee = true;
-        ValuesFromAmount memory values = _getValues(amount, _isExcludedFromFee[sender]);
+        ValuesFromAmount memory values = _getValues(amountReceived, _isExcludedFromFee[sender]);
         
         if(_isExcludedFromFee[sender] || _isExcludedFromFee[recipient]){
             takeFee = false;
         }
 
         if (takeFee) {
-            amount=values.tTransferAmount;
+            amountReceived=values.tTransferAmount;
+
             super._transfer(sender, treasuryPool, values.tTreasuryFee);
+
         }
 
-        super._transfer(sender, recipient, amount);//change to amountReceive
-        emit Transfer(sender, recipient, amount);
+        super._transfer(sender, recipient, amountReceived);
+        emit Transfer(sender, recipient, amountReceived);
     }
-
-    //SWAP TOKENS FOR AVAX IF ABOVE THRESHOLD
-    //TRIGGER BY PEACHMANAGER
-    //Move to PeachManager
-    // function contractSwap(uint256 numTokensToSwap) internal {
-    //     ValuesFromAmount memory values = _getValues(numTokensToSwap, _isExcludedFromFee[_msgSender()]);
-    //     uint256 amountToTreasury = values.tTreasuryFee;
-    //     uint256 amountToLiquify = amountToTreasury / 2;
-
-    //     //may need to add approve
-
-
-    //     if(amountToTreasury > 0) { 
-    //         //add transfer
-    //         emit Transfer(address(this), treasuryPool, amountToTreasury);
-    //     }
-
-    //     address[] memory path = new address[](2);
-    //     path[0] = address(this);
-    //     path[1] = wavaxAddress;
-
-    //     //INITIALIZE ROUTER
-    //     peachManager.swapExactTokensForAVAX(
-    //         address(this),
-    //         numTokensToSwap - amountToLiquify - amountToTreasury,
-    //         path
-    //     );
-
-    //     uint256 amountAVAX = address(this).balance;
-
-    //     if (amountToLiquify > 0) {
-    //         peachManager.addLiquidityAvax{value: amountAVAX}(
-    //             address(this),
-    //             amountToLiquify
-    //         );
-    //     }
-    // }
 
     // Allocate Team Wallet Tokens
     function lockInTeamWallet() public onlyOwner {
-        require(isTeamLocked == false);
+        require(isTeamLocked == false, "Team Wallet Already Supplied");
         isTeamLocked=true;
         transfer(teamPool, teamSupply);
     }
 
     // Set Vault Wallet and Allocate Funds
     function lockInVaultWallet(address payable recipient) public onlyOwner {
-        require(isVaultLocked == false);
+        require(isVaultLocked == false, "Vault Wallet Already Supplied");
         vault = recipient;
         isVaultLocked=true;
         transfer(vault, vaultLock);
     }
 
-    function isExcludedFromFee(address account) external view returns (bool) {
-        return _isExcludedFromFee[account];
-    }
-    
-    function excludeAccountFromFee(address account) public onlyOwner {
-        require(!_isExcludedFromFee[account], "Account is already excluded.");
-
-        _isExcludedFromFee[account] = true;
-
-        emit ExcludeAccountFromFee(account);
+    function setFeeExempt(address account, bool exempt) public onlyOwner {
+        _isExcludedFromFee[account] = exempt;
     }
 
-    function includeAccountInFee(address account) public onlyOwner {
-        require(_isExcludedFromFee[account], "Account is already included.");
-
-        _isExcludedFromFee[account] = false;
-
-        emit IncludeAccountInFee(account);
+    //view funtcion
+    function shouldTakeFee(address sender) public view returns(bool){
+        return !_isExcludedFromFee[sender];
     }
 
     function _getValues(uint256 amount, bool deductTransferFee) private view returns (ValuesFromAmount memory) {
