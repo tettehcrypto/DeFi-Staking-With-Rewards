@@ -23,7 +23,7 @@ contract TeamWallet is Ownable{
        //now send all the token balance
        uint256 tokenBalance = token.balanceOf(address(this));
        token.transfer(_msgSender(), tokenBalance);
-       emit WithdrawTokens(_tokenContract, msg.sender, tokenBalance);
+       emit WithdrawTokens(_tokenContract, _msgSender(), tokenBalance);
     }
 
     function info() public view returns(uint256, uint256, uint256) {
