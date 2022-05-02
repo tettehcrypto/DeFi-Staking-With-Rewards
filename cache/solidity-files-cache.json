@@ -922,6 +922,82 @@
       "artifacts": [
         "PeachManager"
       ]
+    },
+    "C:\\Users\\nogazi\\PeachNode\\contracts\\VaultWallet.sol": {
+      "lastModificationDate": 1651511856353,
+      "contentHash": "bf06452fe397f3f36a25f2a5f09f2d3b",
+      "sourceName": "contracts/VaultWallet.sol",
+      "solcConfig": {
+        "version": "0.8.4",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "@openzeppelin/contracts/token/ERC20/ERC20.sol",
+        "@openzeppelin/contracts/access/Ownable.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "VaultWallet"
+      ]
+    },
+    "C:\\Users\\nogazi\\PeachNode\\contracts\\TeamWallet.sol": {
+      "lastModificationDate": 1651511862268,
+      "contentHash": "98d9cf3a015efe9bdd0d80ec1b9607e3",
+      "sourceName": "contracts/TeamWallet.sol",
+      "solcConfig": {
+        "version": "0.8.4",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "@openzeppelin/contracts/token/ERC20/ERC20.sol",
+        "@openzeppelin/contracts/access/Ownable.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "TeamWallet"
+      ]
     }
   }
 }

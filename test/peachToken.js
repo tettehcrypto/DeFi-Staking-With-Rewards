@@ -1,164 +1,168 @@
-const { expect } = require("chai");
+const { expect, assert, should } = require("chai");
 const { ethers } = require("hardhat");
-const { expectRevert, ether } = require('@openzeppelin/test-helpers');
-const {router_abi, factory_abi} = require("../abi/joe_router_abi.json");
-const Table = require("cli-table3");
-const routerAddress = "0x60aE616a2155Ee3d9A68541Ba4544862310933d4";
+const EVM_REVERT = "VM Exception while processing transaction: reverted with reason string 'ERC20: transfer amount exceeds balance"
 
-describe("Peach Token Tests", function(){
+let Token;
+let Peach;
+let owner;
+let addr1;
+let addr2;
+let treasuryPool;
+let teamPool;
+amount100 = ethers.utils.parseEther('100')
+const amount50 = ethers.utils.parseEther('50');
+const amount1 = ethers.utils.parseEther('1');
+//More Negative Tests
 
-    let table = new Table({
-        head:['Contracts', 'contract addresses'],
-        colWidths:['auto','auto']
-      });
+beforeEach(async function () {
+    Token = await ethers.getContractFactory("PeachToken");
+    [owner, addr1, addr2, treasuryPool, teamPool] = await ethers.getSigners();
+    Peach = await Token.deploy(
+        treasuryPool.address,
+        teamPool.address,
+    );
+    await Peach.deployed();
+})
 
-    let peachToken, limiter, acc1, acc2, routerContract, dai;
-    beforeEach(async function(){
-            await ethers.provider.send("hardhat_reset",[{
-                forking: {
-                    jsonRpcUrl: "https://api.avax.network/ext/bc/C/rpc",
-                    blockNumber: 2975762,
-                        },
-                    },
-                ],
-            );
-
-
-        [peachOwner, treasury, team, acc1, acc2, acc3] = await ethers.getSigners();
-
-         //initating Router contract
-        routerContract = await ethers.getContractAt(router_abi, routerAddress )
-        
-        //deploying peach token
-        const PeachContract = await ethers.getContractFactory("PeachToken");
-        peachToken = await PeachContract.connect(peachOwner).deploy(treasury.address, team.address);
-        const ownerPeach = await peachToken.owner();
-
-        //deploying Mock token
-        const MockContract = await ethers.getContractFactory("MDai");
-        mDai = await MockContract.connect(peachOwner).deploy();
-        
-        //deploying limiter contract
-        const LimiterContract = await ethers.getContractFactory("LimiterTax");
-        limiter = await LimiterContract.connect(peachOwner).deploy("10", "50", [peachToken.address, mDai.address], treasury.address);
-
-        //set implemetation point
-        await peachToken.setLiquidityTaxManager(limiter.address);
-        const add = await peachToken.getLiquidityTaxManager();
-
-        const pairAddress = await limiter.getPair();
-        table.push(
-            ["Peach and limiter tax owner: ", ownerPeach],
-            ["Peach Token Contract: ", peachToken.address],
-            ["Mock Dai Contract: ", mDai.address],
-            ["Limiter COntract deployed at: ", limiter.address],
-            ["Limiter address via Peach Token: ", add],
-            ["Pair address:", pairAddress],
-        );
+describe("PEACH Token Deployment", function () {
+    it("Should be deployed", async function () {
+        expect(await Peach.symbol()).to.equal("PEACH");
     });
 
-    it("Contracts ", async function(){
-        console.log(table.toString());
-      })
+    it("Should set the right owner", async function () {
+      expect(await Peach.owner()).to.equal(owner.address);
+    });
+});
 
-    it("Transfer Tax", async function(){
 
-        //Transfering from owner. This should not incur any tax
-        let amount =ethers.utils.parseEther("10000");
-        expect(await peachToken.balanceOf(peachOwner.address)).to.equal(await peachToken.totalSupply());
-        await peachToken.connect(peachOwner).transfer(acc1.address, amount );
-        expect((await peachToken.balanceOf(acc1.address)).toString()).to.equal(amount.toString());
-        expect((await peachToken.balanceOf(treasury.address)).toString()).to.equal("0");
+describe("Transactions", function () {
+    it("Owner Should Have 2 Million Tokens", async function () {
+        let  supply = 2000000;
+        let  _decimals = 18;
+        let  _totalSupply = supply * (10 ** _decimals);
+        
+        // Get Balance Of Owner
+        const ownerBalance = await Peach.balanceOf(
+            owner.address
+        );
+        assert.equal(ownerBalance,_totalSupply, 'Tokens Minted To Owner')
+    });
 
-        //transfering from acc1 to acc2. This should incur transfer tax.
-        amount = ethers.utils.parseEther("5000");
-        await peachToken.connect(acc1).transfer(acc2.address, amount );
-        expect((await peachToken.balanceOf(acc1.address)/1e18).toString()).to.equal("5000")
-        expect((await peachToken.balanceOf(acc2.address)/1e18).toString()).to.equal("2500");
-        expect((await peachToken.balanceOf(treasury.address)/1e18).toString()).to.equal("2500");
+    it("Owner Should Transfer 50 Tokens to Address 1 using Transfer", async function () {
+        // Transfer 50 tokens to addr1 
+        // We use .connect(signer) to send a transaction from another account
+        await Peach.connect(owner).transfer(addr1.address, amount50);
+        let  _decimals = 18;
+        let expected = 50*(10**_decimals)
+        const addr1Balance = await Peach.balanceOf(
+            addr1.address
+        );
+        assert.equal(addr1Balance,expected, 'Tokens Transferred to Address 1');
+    });
 
-        //transfering from acc2 to acc3. This should incur transfer tax.
-        amount = ethers.utils.parseEther("2500");
-        await peachToken.connect(acc2).transfer(acc3.address, amount );
-        expect((await peachToken.balanceOf(acc2.address)/1e18).toString()).to.equal("0")
-        expect((await peachToken.balanceOf(acc3.address)/1e18).toString()).to.equal("1250");
-        expect((await peachToken.balanceOf(treasury.address)/1e18).toString()).to.equal("3750");
+    it("Transfer Tax Between Address 1 and 2. Treasury Should Recieve Fees", async function () {
+      let  _decimals = 18;
+      let expected = 25*(10**_decimals)
+
+      // Transfer 50 tokens from addr1 to addr2
+      // We use .connect(signer) to send a transaction from another account
+      await Peach.connect(owner).transfer(addr1.address, amount50);
+      const addr1Balance = await Peach.balanceOf(
+        addr1.address
+      );
+
+      // Transfer 50 tokens from addr1 to addr2
+      // We use .connect(signer) to send a transaction from another account
+      await Peach.connect(addr1).transfer(addr2.address, amount50);
+      const addr2Balance = await Peach.balanceOf(
+        addr2.address
+      );
+      const treasuryPoolBalance = await Peach.balanceOf(treasuryPool.address)
+
+      //25 as 50% Tax
+      assert.equal(addr2Balance, expected, 'Fee Taken From Transfer Between Addr1 and Addr2')
+      assert.equal(treasuryPoolBalance,expected, 'Fee Deposited To Treasury')
+    });
+
+    it("Should fail if sender doesn’t have enough tokens", async function () {
+      const initialOwnerBalance = await Peach.balanceOf(
+        owner.address
+      );
+      
+      //addr1Balance should be 0
+      const addr1Balance = await Peach.balanceOf(
+        addr1.address
+      );
+
+      expect(addr1Balance).to.equal(0)
+
+      expect(await Peach.connect(addr1).transfer(owner.address,amount1)).to.throw
+      
+    });
+
+    it("Should update balances after transfers", async function () {
+      let  _decimals = 18;
+      let expected1 = 100*(10**_decimals)
+      let expected2 = 50*(10**_decimals)
+      const initialOwnerBalance = await Peach.balanceOf(
+        owner.address
+      );
+  
+      // Transfer 100 tokens from owner to addr1.
+      await Peach.transfer(addr1.address, amount100);
+  
+      // Transfer another 50 tokens from owner to addr2.
+      await Peach.transfer(addr2.address, amount50);
+  
+      // Check balances.
+      const finalOwnerBalance = await Peach.balanceOf(
+        owner.address
+      );
+      expect(finalOwnerBalance < initialOwnerBalance);
+  
+      const addr1Balance = await Peach.balanceOf(
+        addr1.address
+      );
+      assert.equal(addr1Balance,expected1);
+  
+      const addr2Balance = await Peach.balanceOf(
+        addr2.address
+      );
+      assert.equal(addr2Balance,expected2);
+    });
+
+    it("Team Wallet Tokens Should Be Allocated", async function (){
+      let  _decimals = 18;
+
+      const totalSupply = 2000000 * (10**_decimals)
+      const teamSupply = 100000 * (10**_decimals)
+
+      // Get Balance Of Owner
+      const ownerBalance = await Peach.balanceOf(
+        owner.address
+      );
+      assert.equal(ownerBalance,totalSupply, 'Tokens Minted To Owner')
+
+      await Peach.lockInTeamWallet();
+        
+      const teamBalance = await Peach.balanceOf(teamPool.address);
+
+      assert.equal(teamBalance,teamSupply, 'Team Wallet Tokens Sent')
+    });
+
+    it("Should Fail If Non-Owner Runs exludeAccountFromFees", async function (){
+      expect(await Peach.connect(addr1).setFeeExempt(addr1.address, true)).to.throw
     })
 
-    it("Sell Tax & Buy", async function(){
-
-        //Transfering from owner. This should not incur any tax
-        let amountAcc1 =ethers.utils.parseEther("10000");
-        await peachToken.connect(peachOwner).transfer(acc1.address, amountAcc1);
-        await mDai.connect(peachOwner).transfer(acc1.address, amountAcc1);
-        expect((await peachToken.balanceOf(acc1.address)).toString()).to.equal(amountAcc1.toString());
-        expect((await mDai.balanceOf(acc1.address)).toString()).to.equal(amountAcc1.toString());
-        await peachToken.connect(acc1).approve(routerAddress, amountAcc1);
-        await mDai.connect(acc1).approve(routerAddress, amountAcc1);
-        console.log("Dai before LP: ", ethers.utils.formatUnits(await mDai.balanceOf(peachOwner.address), 18));
-        console.log("PeachToken before LP: ",ethers.utils.formatUnits(await peachToken.balanceOf(peachOwner.address), 18));
-        console.log("--------------------------------------------");
-        //Adding lp peach and avax lp
-        const approveAmount = ethers.utils.parseEther("100000");
-        await peachToken.connect(peachOwner).approve(routerAddress, approveAmount);
-        await mDai.connect(peachOwner).approve(routerAddress, approveAmount);
-        
-        const amountLp = ethers.utils.parseEther("50000");
-        await routerContract.connect(peachOwner).addLiquidity
-        ( peachToken.address, mDai.address,
-            amountLp, amountLp,
-            "0", "0",
-            peachOwner.address, "1649910829447"// update this with current epoch
-        )
-        let reserve0 =  ethers.utils.formatUnits( await limiter.getReserve0(), 18)
-        let reserve1 =  ethers.utils.formatUnits(await limiter.getReserve1(), 18); 
-        console.log("price: ", reserve1/reserve0);
-        console.log(await peachToken.shouldTakeFee(peachOwner.address))
-        console.log("Dai after LP: ", ethers.utils.formatUnits(await mDai.balanceOf(peachOwner.address), 18));
-        console.log("PeachToken after LP: ",ethers.utils.formatUnits(await peachToken.balanceOf(peachOwner.address), 18));
-        console.log("--------------------------------------------");
-        //swapping token - no tax should incur
-        let amountTo = ethers.utils.parseEther("5000");
-        await routerContract.connect(peachOwner).swapExactTokensForTokens(
-            amountTo, "0", [ peachToken.address, mDai.address], 
-            peachOwner.address, "1649910829447"
-          );
-        console.log("mdai after swap: ",  ethers.utils.formatUnits(await mDai.balanceOf(peachOwner.address), 18));
-        console.log("PeachToken after swap: ", ethers.utils.formatUnits(await peachToken.balanceOf(peachOwner.address), 18));
-        console.log("Treasury peachToken after swap: ", ethers.utils.formatUnits(await peachToken.balanceOf(treasury.address), 18));
-        console.log("Treasury mDai after swap: ", ethers.utils.formatUnits(await mDai.balanceOf(treasury.address), 18));
-        
-        reserve0 =  ethers.utils.formatUnits( await limiter.getReserve0(), 18)
-        reserve1 =  ethers.utils.formatUnits(await limiter.getReserve1(), 18); 
-        console.log("price: ", reserve1/reserve0);
-        // console.log(await peachToken.balanceOf(acc1.address));
-        console.log(await mDai.balanceOf(acc1.address));
-
-        console.log("--------------------------------------------");
-        //Acc1 selling token. This should incur sell tax
-        expect((await peachToken.balanceOf(acc1.address)).toString()).to.equal(amountAcc1.toString());
-        expect((await mDai.balanceOf(acc1.address)).toString()).to.equal(amountAcc1.toString());
-        let amountTo1 = ethers.utils.parseEther("50");
-
-        await routerContract.connect(acc1).swapExactTokensForTokensSupportingFeeOnTransferTokens(
-        amountTo1, "0", [ peachToken.address, mDai.address], 
-        acc1.address, "1649910829447"
-        );
-        console.log("mdai acc1 after: ",  ethers.utils.formatUnits(await mDai.balanceOf(acc1.address), 18));
-        console.log("PeachToken acc1 after: ", ethers.utils.formatUnits(await peachToken.balanceOf(acc1.address), 18));
-        console.log("Treasury acc1 after: ", ethers.utils.formatUnits(await peachToken.balanceOf(treasury.address), 18));
-        
-        console.log("--------------------------------------------");
-        ////Acc1 buying token. This should incur sell tax
-        amountTo1 = ethers.utils.parseEther("500");
-        await routerContract.connect(acc1).swapExactTokensForTokens(
-            amountTo1, "0", [ mDai.address, peachToken.address], 
-            acc1.address, "1649910829447"
-        );
-
-        console.log("mdai acc1 after buy: ",  ethers.utils.formatUnits(await mDai.balanceOf(acc1.address), 18));
-        console.log("PeachToken acc1 after buy: ", ethers.utils.formatUnits(await peachToken.balanceOf(acc1.address), 18));
-        console.log("Treasury acc1 after buy: ", ethers.utils.formatUnits(await peachToken.balanceOf(treasury.address), 18));
-        
+    it("Should Fail if Non-Owner Runs transferOwnership", async function (){
+      expect(await Peach.connect(addr1).transferOwnership(addr2.address)).to.throw
     })
-})
+
+    it("Owner, treasuryPool, teamPool, PeachToken should be excluded from fees", async function () {
+      expect(await Peach.shouldTakeFee(owner.address)).to.be.false;
+      expect(await Peach.shouldTakeFee(treasuryPool.address)).to.be.false;
+      expect(await Peach.shouldTakeFee(teamPool.address)).to.be.false;
+      expect(await Peach.shouldTakeFee(Peach.address)).to.be.false;
+    })
+
+});
