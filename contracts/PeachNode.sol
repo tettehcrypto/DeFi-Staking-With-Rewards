@@ -5,17 +5,23 @@ import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./PeachManager.sol";
+import "./interfaces/IJoeRouter02.sol";
 
 contract PeachNode is ERC1155, Ownable{
     using SafeMath for uint256;
 
     address peachToken;
-    address taxContract;
-
+    address rewardsPool;
+    address teamWallet;
+    address treasury;
+    PeachManager peachManager;
+    address WAVAX_ADDRESS = 0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7;
+    address JOE_ROUTER_ADDRESS = 0x60aE616a2155Ee3d9A68541Ba4544862310933d4;
     uint256 private _decimals = 10**18;
     uint256 public priceStandard = 20 * _decimals;
     uint256 public priceSlotmachine = 20 * _decimals;
-
+    IJoeRouter02 private router = IJoeRouter02(0x60aE616a2155Ee3d9A68541Ba4544862310933d4);
     uint256 constant MAX_INT = 2**256 - 1;
 
     // uint64 public reward = 1157;
@@ -55,11 +61,19 @@ contract PeachNode is ERC1155, Ownable{
 
     constructor(
         address _peachToken,
-        address _taxContract
+        address _rewardsPool,
+        address _teamWallet,
+        address _treasury,
+        address payable _peachManager
     ) ERC1155("") {
         peachToken = _peachToken;
-        taxContract = _taxContract;
+        rewardsPool = _rewardsPool;
+        teamWallet = _teamWallet;
+        treasury = _treasury;
+        peachManager = PeachManager(_peachManager);
     } 
+
+    receive() external payable {}
 
     // Number of Nodes Created By Tier
     mapping(uint256 => uint256) private _nodes;
@@ -71,8 +85,8 @@ contract PeachNode is ERC1155, Ownable{
     // Number of Nodes Created
     uint256 public nodeCount;
 
-    function getBalance() public view returns(uint256){
-        return IERC20(peachToken).balanceOf(msg.sender);
+    function getTokenBalance() public view returns(uint256){
+        return IERC20(peachToken).balanceOf(_msgSender());
     }
 
     function approveContract() public {
@@ -83,29 +97,33 @@ contract PeachNode is ERC1155, Ownable{
     function createNode(uint256 _tier, uint256 amount) 
     external
     {
-        address sender = msg.sender;
+        address sender = _msgSender();
+        require(sender != address(0), "Invalid Address");
         require(_tier >= 1 && _tier <7, "Invalid Tier");
         require(
             isNodeAvailable(_tier, amount),"Node not available"
         );
+        require(amount < 21, "Max Nodes Per Transaction Exceeded");
 
         if(_nodes[_tier] == 6) {
             setSlotPrice();
         }  else {
             setStandardPrice();
         }
-
-        uint256 senderBalance = IERC20(peachToken).balanceOf(sender);
-        require(senderBalance >= _prices[sender], "Insufficient Balance");
         
         uint256 tokenAmount = _prices[sender] * amount;
-        
-        
+
+        require(
+            IERC20(peachToken).balanceOf(sender) >= tokenAmount, "Insufficient $PEACH Balance"
+        );
+
         IERC20(peachToken).transferFrom(
             sender,
-            address(this), //Where tokens sent to? Rewards pool?
+            address(this), 
             tokenAmount
         );
+
+        require(finaliseTransfer(tokenAmount));
 
         for (uint256 i = 0; i < amount; i++) {
             _nodesOfOwner[sender][_tier].push(
@@ -119,28 +137,84 @@ contract PeachNode is ERC1155, Ownable{
         _mint(sender, _tier, amount, "");
         _nodes[_tier]+=amount;
         nodeCount+=amount;
+        
+        
+    }
+
+    //Distribute Tokens From Node Creation
+    function finaliseTransfer(uint tokenAmount) 
+    internal 
+    returns(bool)
+    {
+        uint256 amountToTreasury = (tokenAmount * 20) / 100;
+        uint256 amountToTeam = (tokenAmount * 5) / 100;
+        uint256 amountToLiquidity = ((tokenAmount * 15) / 100)/2;
+
+        IERC20(peachToken).approve(address(JOE_ROUTER_ADDRESS), MAX_INT);
+
+        IERC20(peachToken).transfer(
+            treasury,
+            amountToTreasury
+        );
+
+        IERC20(peachToken).transfer(
+            teamWallet,
+            amountToTeam
+        );
+
+        address[] memory path = new address[](2);
+        path[0] = peachToken;
+        path[1] = WAVAX_ADDRESS;
+
+        router.swapExactTokensForAVAX(
+            amountToLiquidity,
+            0,
+            path,
+            address(this),
+            block.timestamp
+        );
+
+        uint256 amountAVAX = address(this).balance;
+        router.addLiquidityAVAX{value: amountAVAX}(
+            peachToken,
+            amountToLiquidity,
+            1,
+            1,
+            address(this),
+            block.timestamp
+        );
+
+        return true;
     }
 
     //Claim rewards
     function claimRewards(uint256 _tier)
     external
     {
-        address sender = msg.sender;
+        address sender = _msgSender();
         uint256 rewards = getRewards(sender, _tier);
         require(rewards > 1, "You Don't Have Enough Rewards");
         
         uint256 rewardsUser =(rewards * 12) / 100;
+        uint256 rewardsTeam = (rewards *3) / 100;
+
         IERC20(peachToken).transferFrom(
             address(this),
             sender,
             rewardsUser
+        );
+        
+        IERC20(peachToken).transferFrom(
+            address(this),
+            teamWallet,
+            rewardsTeam
         );
     }
 
     function compoundRewards(uint256 _tier)
     external
     {
-        address sender = msg.sender;
+        address sender = _msgSender();
         uint256 rewards = getRewards(sender, _tier);
 
         if(_nodes[_tier] == 6) {
@@ -233,7 +307,7 @@ contract PeachNode is ERC1155, Ownable{
     function setStandardPrice() 
     public 
     {
-        address owner = msg.sender;
+        address owner = _msgSender();
         uint256 count = 
             balanceOf(owner,1)
             +balanceOf(owner,2)
@@ -242,17 +316,17 @@ contract PeachNode is ERC1155, Ownable{
             +balanceOf(owner,5);
 
         if (count < 10){
-            _prices[msg.sender] = priceStandard;
+            _prices[owner] = priceStandard;
         }else if (count >=10 && count < 20){
-            _prices[msg.sender] = 25* _decimals;
+            _prices[owner] = 25* _decimals;
         } else if (count >=20 && count < 40){
-            _prices[msg.sender] = 30* _decimals;
+            _prices[owner] = 30* _decimals;
         }else if (count >=40 && count < 80){
-            _prices[msg.sender] = 35* _decimals;
+            _prices[owner] = 35* _decimals;
         }else if (count >=80 && count < 100){
-            _prices[msg.sender] = 40* _decimals;
+            _prices[owner] = 40* _decimals;
         }else if (count >=100){
-            _prices[msg.sender] = 45* _decimals;
+            _prices[owner] = 45* _decimals;
         }
     }
 
@@ -260,21 +334,21 @@ contract PeachNode is ERC1155, Ownable{
     function setSlotPrice() 
     public 
     {
-        address owner = msg.sender;
+        address owner = _msgSender();
         uint256 count = balanceOf(owner,6);
 
         if (count < 10){
-            _prices[msg.sender] = priceSlotmachine;
+            _prices[owner] = priceSlotmachine;
         }else if (count >=10 && count < 20){
-            _prices[msg.sender] = 25* _decimals;
+            _prices[owner] = 25* _decimals;
         } else if (count >=20 && count < 40){
-            _prices[msg.sender] = 30* _decimals;
+            _prices[owner] = 30* _decimals;
         }else if (count >=40 && count < 80){
-            _prices[msg.sender] = 35* _decimals;
+            _prices[owner] = 35* _decimals;
         }else if (count >=80 && count < 100){
-            _prices[msg.sender] = 40* _decimals;
+            _prices[owner] = 40* _decimals;
         }else if (count >=100){
-            _prices[msg.sender] = 45* _decimals;
+            _prices[owner] = 45* _decimals;
         }
     }
 }

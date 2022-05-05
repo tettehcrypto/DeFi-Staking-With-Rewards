@@ -122,7 +122,6 @@ contract PeachToken is ERC20, Ownable, ReentrancyGuard {
             amountReceived=values.tTransferAmount;
 
             super._transfer(sender, treasuryPool, values.tTreasuryFee);
-
         }
 
         super._transfer(sender, recipient, amountReceived);
