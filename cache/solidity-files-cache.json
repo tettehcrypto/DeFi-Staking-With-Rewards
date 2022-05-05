@@ -545,8 +545,8 @@
       ]
     },
     "C:\\Users\\nogazi\\PeachNode\\contracts\\PeachNode.sol": {
-      "lastModificationDate": 1651710596020,
-      "contentHash": "0e34db004a2bfd85454f64dbfc4200fc",
+      "lastModificationDate": 1651778192590,
+      "contentHash": "bb01a006ed7f70e4e5cc3075e17b4655",
       "sourceName": "contracts/PeachNode.sol",
       "solcConfig": {
         "version": "0.8.4",
@@ -576,8 +576,9 @@
         "@openzeppelin/contracts/access/Ownable.sol",
         "@openzeppelin/contracts/utils/math/SafeMath.sol",
         "@openzeppelin/contracts/token/ERC20/IERC20.sol",
-        "./PeachManager.sol",
-        "./interfaces/IJoeRouter02.sol"
+        "./interfaces/IJoeRouter02.sol",
+        "./RewardsPool.sol",
+        "hardhat/console.sol"
       ],
       "versionPragmas": [
         "^0.8.0"
@@ -885,8 +886,8 @@
       ]
     },
     "C:\\Users\\nogazi\\PeachNode\\contracts\\PeachManager.sol": {
-      "lastModificationDate": 1651530032456,
-      "contentHash": "dd32df2b2b3107f5f452c96e17ad5fee",
+      "lastModificationDate": 1651764362861,
+      "contentHash": "b9378e05b860b0f5f6ec685641e065cc",
       "sourceName": "contracts/PeachManager.sol",
       "solcConfig": {
         "version": "0.8.4",
@@ -1002,8 +1003,8 @@
       ]
     },
     "C:\\Users\\nogazi\\PeachNode\\contracts\\RewardsPool.sol": {
-      "lastModificationDate": 1651531574960,
-      "contentHash": "293a78ccf3d2a0be004fcfee5b9ff046",
+      "lastModificationDate": 1651778192613,
+      "contentHash": "5768594e512a9ee3c5d9396b9fbd94a8",
       "sourceName": "contracts/RewardsPool.sol",
       "solcConfig": {
         "version": "0.8.4",
@@ -1036,7 +1037,7 @@
         "^0.8.0"
       ],
       "artifacts": [
-        "Pool"
+        "RewardsPool"
       ]
     }
   }

@@ -13,6 +13,7 @@ contract PeachManager {
     address public immutable WAVAX;
     address PEACH_TOKEN;
     address public wavaxPeachPairAddress;
+    address private rewardsPool;
 
     address private JOE_FACTORY;
     address private JOE_ROUTER;
@@ -28,7 +29,8 @@ contract PeachManager {
         address _router,
         address _peachToken,
         address _WAVAX,
-        address[2] memory path
+        address[2] memory path,
+        address _rewardsPool
     ) {
         router = IJoeRouter02(_router);
         pair = createJoePair(path);
@@ -38,6 +40,8 @@ contract PeachManager {
 
         JOE_FACTORY = _factory;
         JOE_ROUTER = _router;
+
+        rewardsPool = _rewardsPool;
         // wavaxPeachPairAddress = IJoeFactory(JOE_FACTORY).createPair(PEACH_TOKEN, _WAVAX);
     }
 
@@ -60,7 +64,7 @@ contract PeachManager {
             _tokenAmount,
             1,
             1,
-            msg.sender,
+            rewardsPool,
             block.timestamp
         );
     }
@@ -110,7 +114,7 @@ contract PeachManager {
         );
         emit Pair("Peach/Wavax", currPair);
 
-        uint liquidity = IERC20(currPair).balanceOf(address(this));
+        uint liquidity = IERC20(currPair).balanceOf(rewardsPool);
 
         IERC20(currPair).approve(JOE_ROUTER, liquidity);
 
@@ -120,7 +124,7 @@ contract PeachManager {
                 liquidity,
                 1,
                 1,
-                address(this),
+                rewardsPool,
                 block.timestamp
             );
 

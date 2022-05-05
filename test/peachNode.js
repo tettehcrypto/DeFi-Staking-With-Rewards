@@ -25,6 +25,7 @@ describe("Deploy PeachNode", () => {
     let peachOwner;
     let teamWallet;
     let treasury;
+    let rewardsPool;
 
     beforeEach(async function () {
         await ethers.provider.send(
@@ -66,6 +67,10 @@ describe("Deploy PeachNode", () => {
             value: largeAmount
         })
 
+        // deploy rewardsPool
+        const RewardsPool = await hre.ethers.getContractFactory("RewardsPool");
+        rewardsPool = await RewardsPool.deploy(peachToken.address)
+
         // deploy peachManager
         const PeachManager = await hre.ethers.getContractFactory("PeachManager");
         peachManager = await PeachManager.deploy(
@@ -73,12 +78,13 @@ describe("Deploy PeachNode", () => {
             JOE_ROUTER_ADDRESS,
             peachToken.address,
             WAVAX_ADDRESS,
-            [peachToken.address, WAVAX_ADDRESS]
+            [peachToken.address, WAVAX_ADDRESS],
+            rewardsPool.address
         );
 
         //deploy PeachNode
         const PeachNode = await hre.ethers.getContractFactory("PeachNode")
-        peachNode = await PeachNode.connect(peachOwner).deploy(peachToken.address, dead2, teamWallet.address, dead, peachManager.address);
+        peachNode = await PeachNode.connect(peachOwner).deploy(peachToken.address, dead2, teamWallet.address, dead);
 
         expect(await peachToken.owner()).equal(await peachNode.owner())
 
@@ -91,7 +97,6 @@ describe("Deploy PeachNode", () => {
     })
 
     it("Should Create Tier 1 Node Using Peach Tokens", async () =>{
-    
         //Acc1 Should Receive Tokens
         await peachToken.connect(peachOwner).transfer(acc1.address, amount20)
         const acc1Bal = await peachToken.connect(peachOwner).balanceOf(acc1.address)

@@ -5,19 +5,21 @@ import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "./PeachManager.sol";
 import "./interfaces/IJoeRouter02.sol";
+import "./RewardsPool.sol";
+import "hardhat/console.sol";
 
 contract PeachNode is ERC1155, Ownable{
     using SafeMath for uint256;
 
     address peachToken;
-    address rewardsPool;
+    RewardsPool rewardsPool;
     address teamWallet;
     address treasury;
-    PeachManager peachManager;
+
     address WAVAX_ADDRESS = 0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7;
     address JOE_ROUTER_ADDRESS = 0x60aE616a2155Ee3d9A68541Ba4544862310933d4;
+
     uint256 private _decimals = 10**18;
     uint256 public priceStandard = 20 * _decimals;
     uint256 public priceSlotmachine = 20 * _decimals;
@@ -63,14 +65,12 @@ contract PeachNode is ERC1155, Ownable{
         address _peachToken,
         address _rewardsPool,
         address _teamWallet,
-        address _treasury,
-        address payable _peachManager
+        address _treasury
     ) ERC1155("") {
         peachToken = _peachToken;
-        rewardsPool = _rewardsPool;
+        rewardsPool = RewardsPool(_rewardsPool);
         teamWallet = _teamWallet;
         treasury = _treasury;
-        peachManager = PeachManager(_peachManager);
     } 
 
     receive() external payable {}
@@ -117,13 +117,7 @@ contract PeachNode is ERC1155, Ownable{
             IERC20(peachToken).balanceOf(sender) >= tokenAmount, "Insufficient $PEACH Balance"
         );
 
-        IERC20(peachToken).transferFrom(
-            sender,
-            address(this), 
-            tokenAmount
-        );
-
-        require(finaliseTransfer(tokenAmount));
+        require(finaliseTransfer(sender, tokenAmount));
 
         for (uint256 i = 0; i < amount; i++) {
             _nodesOfOwner[sender][_tier].push(
@@ -137,27 +131,35 @@ contract PeachNode is ERC1155, Ownable{
         _mint(sender, _tier, amount, "");
         _nodes[_tier]+=amount;
         nodeCount+=amount;
-        
-        
     }
 
     //Distribute Tokens From Node Creation
-    function finaliseTransfer(uint tokenAmount) 
+    function finaliseTransfer(address sender, uint tokenAmount) 
     internal 
     returns(bool)
     {
+        IERC20(peachToken).transferFrom(
+            sender,
+            address(this), 
+            tokenAmount
+        );
+
         uint256 amountToTreasury = (tokenAmount * 20) / 100;
         uint256 amountToTeam = (tokenAmount * 5) / 100;
-        uint256 amountToLiquidity = ((tokenAmount * 15) / 100)/2;
+        uint256 amountToLiquidity = ((tokenAmount * 15) / 100);
+        uint256 swapAmount = amountToLiquidity/2;
 
         IERC20(peachToken).approve(address(JOE_ROUTER_ADDRESS), MAX_INT);
+        IERC20(peachToken).approve(address(this), MAX_INT);
 
-        IERC20(peachToken).transfer(
+        IERC20(peachToken).transferFrom(
+            address(this),
             treasury,
             amountToTreasury
         );
 
-        IERC20(peachToken).transfer(
+        IERC20(peachToken).transferFrom(
+            address(this),
             teamWallet,
             amountToTeam
         );
@@ -167,7 +169,7 @@ contract PeachNode is ERC1155, Ownable{
         path[1] = WAVAX_ADDRESS;
 
         router.swapExactTokensForAVAX(
-            amountToLiquidity,
+            swapAmount,
             0,
             path,
             address(this),
@@ -184,6 +186,12 @@ contract PeachNode is ERC1155, Ownable{
             block.timestamp
         );
 
+        uint256 amountToRewardsPool = IERC20(peachToken).balanceOf(address(this));
+        IERC20(peachToken).transferFrom(
+            address(this),
+            address(rewardsPool),
+            amountToRewardsPool
+        );
         return true;
     }
 
@@ -195,17 +203,18 @@ contract PeachNode is ERC1155, Ownable{
         uint256 rewards = getRewards(sender, _tier);
         require(rewards > 1, "You Don't Have Enough Rewards");
         
-        uint256 rewardsUser =(rewards * 12) / 100;
-        uint256 rewardsTeam = (rewards *3) / 100;
+        uint256 rewardsToPool = (rewards * 12) / 100;
+        uint256 rewardsTeam = (rewards * 3) / 100;
+        uint256 rewardsUser = rewards - rewardsToPool - rewardsTeam;
 
         IERC20(peachToken).transferFrom(
-            address(this),
+            address(rewardsPool),
             sender,
             rewardsUser
         );
         
         IERC20(peachToken).transferFrom(
-            address(this),
+            address(rewardsPool),
             teamWallet,
             rewardsTeam
         );
