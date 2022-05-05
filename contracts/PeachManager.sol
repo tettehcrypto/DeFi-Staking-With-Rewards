@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./interfaces/IJoeRouter02.sol";
 import "./interfaces/IJoeFactory.sol";
 import "./interfaces/IJoePair.sol";
+import "./interfaces/IWAVAX.sol";
 
 // add/remove liquidity
 
@@ -42,10 +43,13 @@ contract PeachManager {
         JOE_ROUTER = _router;
 
         rewardsPool = _rewardsPool;
-        // wavaxPeachPairAddress = IJoeFactory(JOE_FACTORY).createPair(PEACH_TOKEN, _WAVAX);
     }
 
     receive() external payable {}
+
+    // function approveContract(address _in) external {
+    //     IWAVAX(WAVAX).approve(_in, 2**256 - 1);
+    // }
 
     function addLiquidityAvax(address _tokenAddress, uint _tokenAmount)
         external

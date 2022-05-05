@@ -886,8 +886,8 @@
       ]
     },
     "C:\\Users\\nogazi\\PeachNode\\contracts\\PeachManager.sol": {
-      "lastModificationDate": 1651764362861,
-      "contentHash": "b9378e05b860b0f5f6ec685641e065cc",
+      "lastModificationDate": 1651780088273,
+      "contentHash": "508effdb920434e22e2608a8308f5c53",
       "sourceName": "contracts/PeachManager.sol",
       "solcConfig": {
         "version": "0.8.4",
@@ -917,7 +917,8 @@
         "@openzeppelin/contracts/token/ERC20/IERC20.sol",
         "./interfaces/IJoeRouter02.sol",
         "./interfaces/IJoeFactory.sol",
-        "./interfaces/IJoePair.sol"
+        "./interfaces/IJoePair.sol",
+        "./interfaces/IWAVAX.sol"
       ],
       "versionPragmas": [
         "^0.8.0"
