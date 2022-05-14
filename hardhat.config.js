@@ -29,8 +29,8 @@ module.exports = {
             },
         },
         rinkeby: {
-            url: 'https://rinkeby.infura.io/v3/69fe3fe6aa8c4ef6bc985be0a283b349',
-            accounts: ['d7922c2059c30e2df5c8b3af450e0c177b63cdd685333e0b143fb10cc42ee0ef']
+            url: '',
+            accounts: ['']
         }
     }
 };
