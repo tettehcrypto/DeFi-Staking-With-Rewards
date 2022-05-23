@@ -20,9 +20,11 @@ contract VaultWallet is Ownable{
     function withdrawTokens(address _tokenContract) onlyOwner public {
        require(block.timestamp >= unlockDate);
        ERC20 token = ERC20(_tokenContract);
+
        //now send all the token balance
        uint256 tokenBalance = token.balanceOf(address(this));
        token.transfer(_msgSender(), tokenBalance);
+       
        emit WithdrawTokens(_tokenContract, _msgSender(), tokenBalance);
     }
 
